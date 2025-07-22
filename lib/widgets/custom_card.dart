@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 
 class CustomCard extends StatelessWidget {
@@ -6,11 +8,11 @@ class CustomCard extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
 
   const CustomCard({
-    Key? key,
+    super.key,
     required this.child,
     this.margin,
     this.padding,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

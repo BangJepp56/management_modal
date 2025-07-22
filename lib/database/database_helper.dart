@@ -1,5 +1,6 @@
 // ignore_for_file: avoid_print
 
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
@@ -19,7 +20,9 @@ class DatabaseHelper {
   Future<Database> _initDB() async {
     try {
       String path = join(await getDatabasesPath(), 'fotokopian.db');
-      print('Database path: $path');
+      if (kDebugMode) {
+        print('Database path: $path');
+      }
       
       return await openDatabase(
         path,
@@ -27,20 +30,26 @@ class DatabaseHelper {
         onCreate: _createDB,
         onUpgrade: _upgradeDB,
         onOpen: (db) async {
-          print('Database opened successfully');
+          if (kDebugMode) {
+            print('Database opened successfully');
+          }
           // Test database connection
           await db.rawQuery('SELECT 1');
         },
       );
     } catch (e) {
-      print('Error initializing database: $e');
+      if (kDebugMode) {
+        print('Error initializing database: $e');
+      }
       rethrow;
     }
   }
 
   Future<void> _createDB(Database db, int version) async {
     try {
-      print('Creating database tables...');
+      if (kDebugMode) {
+        print('Creating database tables...');
+      }
       
       await db.execute('''
         CREATE TABLE modal_awal (
@@ -77,16 +86,22 @@ class DatabaseHelper {
         )
       ''');
       
-      print('Database tables created successfully');
+      if (kDebugMode) {
+        print('Database tables created successfully');
+      }
     } catch (e) {
-      print('Error creating database tables: $e');
+      if (kDebugMode) {
+        print('Error creating database tables: $e');
+      }
       rethrow;
     }
   }
 
   Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
     try {
-      print('Upgrading database from version $oldVersion to $newVersion');
+      if (kDebugMode) {
+        print('Upgrading database from version $oldVersion to $newVersion');
+      }
       
       if (oldVersion < 2) {
         // Check if columns already exist before adding them
@@ -125,9 +140,13 @@ class DatabaseHelper {
         }
       }
       
-      print('Database upgrade completed successfully');
+      if (kDebugMode) {
+        print('Database upgrade completed successfully');
+      }
     } catch (e) {
-      print('Error upgrading database: $e');
+      if (kDebugMode) {
+        print('Error upgrading database: $e');
+      }
       rethrow;
     }
   }
@@ -139,7 +158,9 @@ class DatabaseHelper {
       await db.rawQuery('SELECT 1');
       return true;
     } catch (e) {
-      print('Database not ready: $e');
+      if (kDebugMode) {
+        print('Database not ready: $e');
+      }
       return false;
     }
   }
@@ -166,7 +187,9 @@ class DatabaseHelper {
       data['createdAt'] = DateTime.now().toIso8601String();
       data['updatedAt'] = DateTime.now().toIso8601String();
       
-      print('Inserting modal awal: $data');
+      if (kDebugMode) {
+        print('Inserting modal awal: $data');
+      }
       
       final result = await db.insert(
         'modal_awal', 
@@ -174,10 +197,14 @@ class DatabaseHelper {
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
       
-      print('Insert modal awal result: $result');
+      if (kDebugMode) {
+        print('Insert modal awal result: $result');
+      }
       return result;
     } catch (e) {
-      print('Error inserting modal awal: $e');
+      if (kDebugMode) {
+        print('Error inserting modal awal: $e');
+      }
       rethrow;
     }
   }
@@ -185,17 +212,23 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> getTotalModal() async {
     try {
       final db = await database;
-      print('Fetching modal awal data...');
+      if (kDebugMode) {
+        print('Fetching modal awal data...');
+      }
       
       final result = await db.query(
         'modal_awal', 
         orderBy: 'id DESC',
       );
       
-      print('Modal awal data fetched: ${result.length} records');
+      if (kDebugMode) {
+        print('Modal awal data fetched: ${result.length} records');
+      }
       return result;
     } catch (e) {
-      print('Error getting modal awal: $e');
+      if (kDebugMode) {
+        print('Error getting modal awal: $e');
+      }
       rethrow;
     }
   }
@@ -208,7 +241,9 @@ class DatabaseHelper {
         throw Exception('ID tidak valid');
       }
       
-      print('Deleting modal awal with ID: $id');
+      if (kDebugMode) {
+        print('Deleting modal awal with ID: $id');
+      }
       
       final result = await db.delete(
         'modal_awal', 
@@ -216,10 +251,14 @@ class DatabaseHelper {
         whereArgs: [id],
       );
       
-      print('Delete modal awal result: $result');
+      if (kDebugMode) {
+        print('Delete modal awal result: $result');
+      }
       return result;
     } catch (e) {
-      print('Error deleting modal awal: $e');
+      if (kDebugMode) {
+        print('Error deleting modal awal: $e');
+      }
       rethrow;
     }
   }
@@ -248,7 +287,9 @@ class DatabaseHelper {
 
       data['updatedAt'] = DateTime.now().toIso8601String();
       
-      print('Updating modal awal ID $id with data: $data');
+      if (kDebugMode) {
+        print('Updating modal awal ID $id with data: $data');
+      }
       
       final result = await db.update(
         'modal_awal', 
@@ -257,10 +298,14 @@ class DatabaseHelper {
         whereArgs: [id],
       );
       
-      print('Update modal awal result: $result');
+      if (kDebugMode) {
+        print('Update modal awal result: $result');
+      }
       return result;
     } catch (e) {
-      print('Error updating modal awal: $e');
+      if (kDebugMode) {
+        print('Error updating modal awal: $e');
+      }
       rethrow;
     }
   }
@@ -286,7 +331,9 @@ class DatabaseHelper {
       
       return await db.insert('pengeluaran', data);
     } catch (e) {
-      print('Error inserting pengeluaran: $e');
+      if (kDebugMode) {
+        print('Error inserting pengeluaran: $e');
+      }
       rethrow;
     }
   }
@@ -296,7 +343,9 @@ class DatabaseHelper {
       final db = await database;
       return await db.query('pengeluaran', orderBy: 'tanggal DESC, id DESC');
     } catch (e) {
-      print('Error getting pengeluaran: $e');
+      if (kDebugMode) {
+        print('Error getting pengeluaran: $e');
+      }
       rethrow;
     }
   }
@@ -312,7 +361,9 @@ class DatabaseHelper {
       data['updatedAt'] = DateTime.now().toIso8601String();
       return await db.update('pengeluaran', data, where: 'id = ?', whereArgs: [id]);
     } catch (e) {
-      print('Error updating pengeluaran: $e');
+      if (kDebugMode) {
+        print('Error updating pengeluaran: $e');
+      }
       rethrow;
     }
   }
@@ -327,7 +378,9 @@ class DatabaseHelper {
       
       return await db.delete('pengeluaran', where: 'id = ?', whereArgs: [id]);
     } catch (e) {
-      print('Error deleting pengeluaran: $e');
+      if (kDebugMode) {
+        print('Error deleting pengeluaran: $e');
+      }
       rethrow;
     }
   }
@@ -356,7 +409,9 @@ class DatabaseHelper {
       
       return await db.insert('pemasukan', data);
     } catch (e) {
-      print('Error inserting pemasukan: $e');
+      if (kDebugMode) {
+        print('Error inserting pemasukan: $e');
+      }
       rethrow;
     }
   }
@@ -366,7 +421,9 @@ class DatabaseHelper {
       final db = await database;
       return await db.query('pemasukan', orderBy: 'tanggal DESC, id DESC');
     } catch (e) {
-      print('Error getting pemasukan: $e');
+      if (kDebugMode) {
+        print('Error getting pemasukan: $e');
+      }
       rethrow;
     }
   }
@@ -395,7 +452,9 @@ class DatabaseHelper {
 
       data['updatedAt'] = DateTime.now().toIso8601String();
       
-      print('Updating pemasukan ID $id with data: $data');
+      if (kDebugMode) {
+        print('Updating pemasukan ID $id with data: $data');
+      }
       
       final result = await db.update(
         'pemasukan', 
@@ -404,10 +463,14 @@ class DatabaseHelper {
         whereArgs: [id],
       );
       
-      print('Update pemasukan result: $result');
+      if (kDebugMode) {
+        print('Update pemasukan result: $result');
+      }
       return result;
     } catch (e) {
-      print('Error updating pemasukan: $e');
+      if (kDebugMode) {
+        print('Error updating pemasukan: $e');
+      }
       rethrow;
     }
   }
@@ -420,7 +483,9 @@ class DatabaseHelper {
         throw Exception('ID tidak valid');
       }
       
-      print('Deleting pemasukan with ID: $id');
+      if (kDebugMode) {
+        print('Deleting pemasukan with ID: $id');
+      }
       
       final result = await db.delete(
         'pemasukan', 
@@ -428,10 +493,14 @@ class DatabaseHelper {
         whereArgs: [id],
       );
       
-      print('Delete pemasukan result: $result');
+      if (kDebugMode) {
+        print('Delete pemasukan result: $result');
+      }
       return result;
     } catch (e) {
-      print('Error deleting pemasukan: $e');
+      if (kDebugMode) {
+        print('Error deleting pemasukan: $e');
+      }
       rethrow;
     }
   }
@@ -448,7 +517,9 @@ class DatabaseHelper {
         'total_modal': result.first['total_modal'] ?? 0,
       };
     } catch (e) {
-      print('Error getting total modal awal: $e');
+      if (kDebugMode) {
+        print('Error getting total modal awal: $e');
+      }
       rethrow;
     }
   }
@@ -470,7 +541,9 @@ class DatabaseHelper {
         'total_pengeluaran': result.first['total_pengeluaran'] ?? 0,
       };
     } catch (e) {
-      print('Error getting total pengeluaran: $e');
+      if (kDebugMode) {
+        print('Error getting total pengeluaran: $e');
+      }
       rethrow;
     }
   }
@@ -493,7 +566,9 @@ class DatabaseHelper {
         'total_transaksi': result.first['total_transaksi'] ?? 0,
       };
     } catch (e) {
-      print('Error getting total pemasukan: $e');
+      if (kDebugMode) {
+        print('Error getting total pemasukan: $e');
+      }
       rethrow;
     }
   }
@@ -518,7 +593,9 @@ class DatabaseHelper {
         'saldo': totalModal + totalPemasukan - totalPengeluaran,
       };
     } catch (e) {
-      print('Error getting financial summary: $e');
+      if (kDebugMode) {
+        print('Error getting financial summary: $e');
+      }
       rethrow;
     }
   }
@@ -530,10 +607,14 @@ class DatabaseHelper {
       if (db != null) {
         await db.close();
         _database = null;
-        print('Database closed successfully');
+        if (kDebugMode) {
+          print('Database closed successfully');
+        }
       }
     } catch (e) {
-      print('Error closing database: $e');
+      if (kDebugMode) {
+        print('Error closing database: $e');
+      }
       rethrow;
     }
   }
@@ -544,9 +625,13 @@ class DatabaseHelper {
       String path = join(await getDatabasesPath(), 'fotokopian.db');
       await databaseFactory.deleteDatabase(path);
       _database = null;
-      print('Database deleted successfully');
+      if (kDebugMode) {
+        print('Database deleted successfully');
+      }
     } catch (e) {
-      print('Error deleting database: $e');
+      if (kDebugMode) {
+        print('Error deleting database: $e');
+      }
       rethrow;
     }
   }

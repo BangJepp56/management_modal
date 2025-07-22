@@ -1,258 +1,131 @@
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
-
-import '../database/database_helper.dart';
-import '../utils/currency_formatter.dart';
-import '../widgets/custom_card.dart';
-import '../widgets/form_input_field.dart';
-import '../widgets/primary_button.dart';
+import 'package:management_app/database/database_helper.dart';
+import 'package:management_app/utils/currency_formatter.dart';
 
 class ModalAwalScreen extends StatefulWidget {
   const ModalAwalScreen({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
-  _ModalAwalScreenState createState() => _ModalAwalScreenState();
+  State<ModalAwalScreen> createState() => _ModalAwalScreenState();
 }
 
 class _ModalAwalScreenState extends State<ModalAwalScreen> {
-  final DatabaseHelper _dbHelper = DatabaseHelper();
-  final _formKey = GlobalKey<FormState>();
-  final _namaBarangController = TextEditingController();
-  final _hargaSatuanController = TextEditingController();
-  final _jumlahController = TextEditingController();
-
-  List<Map<String, dynamic>> _modalList = [];
-  int _totalModal = 0;
-  bool _isLoading = false;
+  final dbHelper = DatabaseHelper();
+  late Future<List<Map<String, dynamic>>> _modalList;
 
   @override
   void initState() {
     super.initState();
-    _loadModal();
+    _loadModalList();
+  }
+
+  void _loadModalList() {
+    setState(() {
+      _modalList = dbHelper.getTotalModal();
+    });
   }
 
   @override
-  void dispose() {
-    _namaBarangController.dispose();
-    _hargaSatuanController.dispose();
-    _jumlahController.dispose();
-    super.dispose();
-  }
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Modal Awal'),
+      ),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _modalList,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text('Tidak ada data modal awal.'));
+          }
 
-  void _showErrorSnackBar(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
-        ),
-      );
-    }
-  }
-
-  void _showSuccessSnackBar(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
-      );
-    }
-  }
-
-  Future<void> _loadModal() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      print('Loading modal data...');
-      final data = await _dbHelper.getTotalModal();
-      final total = await _dbHelper.getTotalModal();
-      
-      print('Modal data loaded: ${data.length} items, total: $total');
-      
-      if (mounted) {
-        setState(() {
-          _modalList = data;
-          _totalModal = total as int;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      print('Error loading modal: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        _showErrorSnackBar('Gagal memuat data modal: $e');
-      }
-    }
-  }
-
-  Future<void> _addModal() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    // Validasi input
-    final hargaSatuanText = _hargaSatuanController.text.trim();
-    final jumlahText = _jumlahController.text.trim();
-    final namaBarang = _namaBarangController.text.trim();
-
-    if (hargaSatuanText.isEmpty || jumlahText.isEmpty || namaBarang.isEmpty) {
-      _showErrorSnackBar('Semua field harus diisi.');
-      return;
-    }
-
-    final hargaSatuan = int.tryParse(hargaSatuanText);
-    final jumlah = int.tryParse(jumlahText);
-
-    if (hargaSatuan == null || hargaSatuan <= 0) {
-      _showErrorSnackBar('Harga satuan harus berupa angka positif.');
-      return;
-    }
-
-    if (jumlah == null || jumlah <= 0) {
-      _showErrorSnackBar('Jumlah harus berupa angka positif.');
-      return;
-    }
-
-    final total = hargaSatuan * jumlah;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      print('Inserting modal: $namaBarang, $hargaSatuan, $jumlah, $total');
-      
-      final result = await _dbHelper.insertModalAwal({
-        'nama_barang': namaBarang,
-        'harga_satuan': hargaSatuan,
-        'jumlah': jumlah,
-        'total': total,
-      });
-
-      print('Insert result: $result');
-
-      if (result > 0) {
-        _namaBarangController.clear();
-        _hargaSatuanController.clear();
-        _jumlahController.clear();
-        _showSuccessSnackBar('Modal berhasil ditambahkan.');
-        await _loadModal();
-      } else {
-        _showErrorSnackBar('Gagal menambahkan modal.');
-      }
-    } catch (e) {
-      print('Error adding modal: $e');
-      _showErrorSnackBar('Gagal menambahkan modal: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _deleteModal(int id) async {
-    // Konfirmasi penghapusan
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Konfirmasi'),
-        content: Text('Apakah Anda yakin ingin menghapus modal ini?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('Hapus', style: TextStyle(color: Colors.white)),
-          ),
-        ],
+          final modalList = snapshot.data!;
+          return ListView.builder(
+            itemCount: modalList.length,
+            itemBuilder: (context, index) {
+              final item = modalList[index];
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: ListTile(
+                  title: Text(item['nama_barang']),
+                  subtitle: Text(
+                      '${item['jumlah']} x ${CurrencyFormatter.format(item['harga_satuan'])}'),
+                  trailing: Text(CurrencyFormatter.format(item['total'])),
+                  onTap: () => _showFormDialog(context, item: item),
+                  onLongPress: () => _deleteModal(context, item['id']),
+                ),
+              );
+            },
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showFormDialog(context),
+        child: const Icon(Icons.add),
       ),
     );
-
-    if (confirmed != true) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      print('Deleting modal with id: $id');
-      final result = await _dbHelper.deleteModalAwal(id);
-      
-      if (result > 0) {
-        _showSuccessSnackBar('Modal berhasil dihapus.');
-        await _loadModal();
-      } else {
-        _showErrorSnackBar('Gagal menghapus modal.');
-      }
-    } catch (e) {
-      print('Error deleting modal: $e');
-      _showErrorSnackBar('Gagal menghapus modal: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
   }
 
-  Future<void> _showEditModalDialog(Map<String, dynamic> modal) async {
-    final editFormKey = GlobalKey<FormState>();
-    final editNamaController = TextEditingController(text: modal['nama_barang']);
-    final editHargaController = TextEditingController(text: modal['harga_satuan'].toString());
-    final editJumlahController = TextEditingController(text: modal['jumlah'].toString());
+  void _showFormDialog(BuildContext context, {Map<String, dynamic>? item}) {
+    final formKey = GlobalKey<FormState>();
+    final namaBarangController = TextEditingController(text: item?['nama_barang']);
+    final hargaSatuanController =
+        TextEditingController(text: item?['harga_satuan']?.toString());
+    final jumlahController = TextEditingController(text: item?['jumlah']?.toString());
 
-    await showDialog(
+    showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('Edit Modal'),
+          title: Text(item == null ? 'Tambah Modal Awal' : 'Edit Modal Awal'),
           content: Form(
-            key: editFormKey,
+            key: formKey,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextFormField(
-                  controller: editNamaController,
-                  decoration: InputDecoration(labelText: 'Nama Barang'),
-                  validator: (value) => value?.trim().isEmpty == true ? 'Nama barang harus diisi' : null,
-                ),
-                SizedBox(height: 12),
-                TextFormField(
-                  controller: editHargaController,
-                  decoration: InputDecoration(labelText: 'Harga Satuan'),
-                  keyboardType: TextInputType.number,
+                  controller: namaBarangController,
+                  decoration: const InputDecoration(
+                    labelText: 'Nama Barang',
+                    border: OutlineInputBorder(),
+                  ),
                   validator: (value) {
-                    if (value?.trim().isEmpty == true) return 'Harga harus diisi';
-                    final harga = int.tryParse(value!.trim());
-                    if (harga == null || harga <= 0) return 'Harga harus berupa angka positif';
+                    if (value == null || value.isEmpty) {
+                      return 'Nama barang tidak boleh kosong';
+                    }
                     return null;
                   },
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 16),
                 TextFormField(
-                  controller: editJumlahController,
-                  decoration: InputDecoration(labelText: 'Jumlah'),
+                  controller: hargaSatuanController,
+                  decoration: const InputDecoration(
+                    labelText: 'Harga Satuan',
+                    border: OutlineInputBorder(),
+                  ),
                   keyboardType: TextInputType.number,
                   validator: (value) {
-                    if (value?.trim().isEmpty == true) return 'Jumlah harus diisi';
-                    final jumlah = int.tryParse(value!.trim());
-                    if (jumlah == null || jumlah <= 0) return 'Jumlah harus berupa angka positif';
+                    if (value == null || value.isEmpty) {
+                      return 'Harga satuan tidak boleh kosong';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: jumlahController,
+                  decoration: const InputDecoration(
+                    labelText: 'Jumlah',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Jumlah tidak boleh kosong';
+                    }
                     return null;
                   },
                 ),
@@ -261,225 +134,65 @@ class _ModalAwalScreenState extends State<ModalAwalScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Batal'),
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Batal'),
             ),
             ElevatedButton(
-              onPressed: () async {
-                if (editFormKey.currentState!.validate()) {
-                  final hargaSatuan = int.parse(editHargaController.text.trim());
-                  final jumlah = int.parse(editJumlahController.text.trim());
-                  final total = hargaSatuan * jumlah;
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  final data = {
+                    'nama_barang': namaBarangController.text,
+                    'harga_satuan': int.parse(hargaSatuanController.text),
+                    'jumlah': int.parse(jumlahController.text),
+                    'total': int.parse(hargaSatuanController.text) *
+                        int.parse(jumlahController.text),
+                  };
 
-                  try {
-                    print('Updating modal with id: ${modal['id']}');
-                    final result = await _dbHelper.updateModalAwal(modal['id'], {
-                      'nama_barang': editNamaController.text.trim(),
-                      'harga_satuan': hargaSatuan,
-                      'jumlah': jumlah,
-                      'total': total,
-                    });
-
-                    if (result > 0) {
-                      Navigator.pop(context);
-                      _showSuccessSnackBar('Modal berhasil diperbarui.');
-                      _loadModal();
-                    } else {
-                      _showErrorSnackBar('Gagal memperbarui modal.');
-                    }
-                  } catch (e) {
-                    print('Error updating modal: $e');
-                    _showErrorSnackBar('Gagal memperbarui modal: $e');
+                  if (item == null) {
+                    dbHelper.insertModalAwal(data);
+                  } else {
+                    dbHelper.updateModalAwal(item['id'], data);
                   }
+
+                  _loadModalList();
+                  Navigator.of(context).pop();
                 }
               },
-              child: Text('Simpan'),
+              child: const Text('Simpan'),
             ),
           ],
         );
       },
     );
-
-    editNamaController.dispose();
-    editHargaController.dispose();
-    editJumlahController.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Modal Awal'),
-        centerTitle: true,
-      ),
-      body: _isLoading && _modalList.isEmpty
-          ? Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                // Total Modal Card
-                Container(
-                  width: double.infinity,
-                  margin: EdgeInsets.all(16),
-                  padding: EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Color(0xFF2E7D32),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        'Total Modal Awal',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        CurrencyFormatter.format(_totalModal),
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Form
-                CustomCard(
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      children: [
-                        FormInputField(
-                          controller: _namaBarangController,
-                          labelText: 'Nama Barang',
-                          prefixIcon: Icons.inventory,
-                          validator: (value) => value?.trim().isEmpty == true ? 'Nama barang harus diisi' : null,
-                        ),
-                        SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: FormInputField(
-                                controller: _hargaSatuanController,
-                                labelText: 'Harga Satuan',
-                                prefixIcon: Icons.attach_money,
-                                keyboardType: TextInputType.number,
-                                validator: (value) {
-                                  if (value?.trim().isEmpty == true) return 'Harga harus diisi';
-                                  final harga = int.tryParse(value!.trim());
-                                  if (harga == null || harga <= 0) return 'Harga harus berupa angka positif';
-                                  return null;
-                                },
-                              ),
-                            ),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: FormInputField(
-                                controller: _jumlahController,
-                                labelText: 'Jumlah',
-                                prefixIcon: Icons.format_list_numbered,
-                                keyboardType: TextInputType.number,
-                                validator: (value) {
-                                  if (value?.trim().isEmpty == true) return 'Jumlah harus diisi';
-                                  final jumlah = int.tryParse(value!.trim());
-                                  if (jumlah == null || jumlah <= 0) return 'Jumlah harus berupa angka positif';
-                                  return null;
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 16),
-                        PrimaryButton(
-                          onPressed: _isLoading
-                              ? () {}
-                              : () {
-                                  _addModal();
-                                },
-                          text: _isLoading ? 'Menyimpan...' : 'Tambah Modal',
-                          icon: Icons.add,
-                          backgroundColor: Color(0xFF2E7D32),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // List
-                Expanded(
-                  child: _modalList.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey),
-                              SizedBox(height: 16),
-                              Text(
-                                'Belum ada data modal',
-                                style: TextStyle(fontSize: 16, color: Colors.grey),
-                              ),
-                            ],
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: EdgeInsets.all(16),
-                          itemCount: _modalList.length,
-                          itemBuilder: (context, index) {
-                            final item = _modalList[index];
-                            return Card(
-                              margin: EdgeInsets.only(bottom: 8),
-                              child: ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: Color(0xFF2E7D32),
-                                  child: Text(
-                                    '${item['jumlah']}',
-                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                                title: Text(
-                                  item['nama_barang'] ?? 'Tidak ada nama',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                subtitle: Text(
-                                  '${CurrencyFormatter.format(item['harga_satuan'] ?? 0)} x ${item['jumlah'] ?? 0}',
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      crossAxisAlignment: CrossAxisAlignment.end,
-                                      children: [
-                                        Text(
-                                          CurrencyFormatter.format(item['total'] ?? 0),
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    SizedBox(width: 8),
-                                    IconButton(
-                                      onPressed: _isLoading ? null : () => _showEditModalDialog(item),
-                                      icon: Icon(Icons.edit, color: Colors.blue),
-                                    ),
-                                    IconButton(
-                                      onPressed: _isLoading ? null : () => _deleteModal(item['id']),
-                                      icon: Icon(Icons.delete, color: Colors.red),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
+  void _deleteModal(BuildContext context, int id) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Hapus Modal'),
+          content: const Text('Apakah Anda yakin ingin menghapus item ini?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Batal'),
             ),
+            ElevatedButton(
+              onPressed: () {
+                dbHelper.deleteModalAwal(id);
+                _loadModalList();
+                Navigator.of(context).pop();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Hapus'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

@@ -8,13 +8,13 @@ class FormInputField extends StatelessWidget {
   final String? Function(String?)? validator;
 
   const FormInputField({
-    Key? key,
+    super.key,
     required this.controller,
     required this.labelText,
     required this.prefixIcon,
     this.keyboardType = TextInputType.text,
     this.validator,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

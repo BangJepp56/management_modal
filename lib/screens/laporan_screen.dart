@@ -1,339 +1,157 @@
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
-import '../database/database_helper.dart';
-import '../utils/currency_formatter.dart';
-import 'package:intl/intl.dart';
+import 'package:management_app/database/database_helper.dart';
+import 'package:management_app/utils/currency_formatter.dart';
 
 class LaporanScreen extends StatefulWidget {
   const LaporanScreen({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
-  _LaporanScreenState createState() => _LaporanScreenState();
+  State<LaporanScreen> createState() => _LaporanScreenState();
 }
 
 class _LaporanScreenState extends State<LaporanScreen> {
-  final DatabaseHelper _dbHelper = DatabaseHelper();
-  
-  String _selectedFilter = 'Hari Ini';
-  final List<String> _filterOptions = ['Hari Ini', 'Minggu Ini', 'Bulan Ini', 'Semua'];
-  
-  int _totalModal = 0;
-  int _totalPengeluaran = 0;
-  int _totalPemasukan = 0;
-  List<Map<String, dynamic>> _detailPengeluaran = [];
-  List<Map<String, dynamic>> _detailPemasukan = [];
+  final dbHelper = DatabaseHelper();
+  late Future<Map<String, dynamic>> _financialSummary;
+
+  DateTime? _startDate;
+  DateTime? _endDate;
 
   @override
   void initState() {
     super.initState();
-    _loadLaporan();
+    _loadFinancialSummary();
   }
 
-  Future<void> _loadLaporan() async {
-    final modal = await _dbHelper.getTotalModal();
-    final pengeluaranData = await _dbHelper.getPengeluaran();
-    final pemasukanData = await _dbHelper.getPemasukan();
-
-    // Filter data berdasarkan periode yang dipilih
-    final filteredPengeluaran = _filterDataByPeriod(pengeluaranData);
-    final filteredPemasukan = _filterDataByPeriod(pemasukanData);
-
-    int totalPengeluaran = 0;
-    int totalPemasukan = 0;
-
-    for (var item in filteredPengeluaran) {
-      totalPengeluaran += item['jumlah'] as int;
-    }
-
-    for (var item in filteredPemasukan) {
-      totalPemasukan += item['total_harga'] as int;
-    }
-
+  void _loadFinancialSummary() {
     setState(() {
-      _totalModal = modal as int;
-      _totalPengeluaran = totalPengeluaran;
-      _totalPemasukan = totalPemasukan;
-      _detailPengeluaran = filteredPengeluaran;
-      _detailPemasukan = filteredPemasukan;
+      _financialSummary = dbHelper.getFinancialSummary(
+        startDate: _startDate?.toIso8601String(),
+        endDate: _endDate?.toIso8601String(),
+      );
     });
   }
 
-  List<Map<String, dynamic>> _filterDataByPeriod(List<Map<String, dynamic>> data) {
-    if (_selectedFilter == 'Semua') return data;
+  Future<void> _selectDateRange(BuildContext context) async {
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      initialDateRange: _startDate != null && _endDate != null
+          ? DateTimeRange(start: _startDate!, end: _endDate!)
+          : null,
+    );
 
-    final now = DateTime.now();
-    DateTime startDate;
-
-    switch (_selectedFilter) {
-      case 'Hari Ini':
-        startDate = DateTime(now.year, now.month, now.day);
-        break;
-      case 'Minggu Ini':
-        startDate = now.subtract(Duration(days: now.weekday - 1));
-        startDate = DateTime(startDate.year, startDate.month, startDate.day);
-        break;
-      case 'Bulan Ini':
-        startDate = DateTime(now.year, now.month, 1);
-        break;
-      default:
-        return data;
+    if (picked != null) {
+      setState(() {
+        _startDate = picked.start;
+        _endDate = picked.end;
+      });
+      _loadFinancialSummary();
     }
-
-    return data.where((item) {
-      final itemDate = DateTime.parse(item['tanggal']);
-      return itemDate.isAfter(startDate.subtract(Duration(days: 1))) && 
-             itemDate.isBefore(now.add(Duration(days: 1)));
-    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    final labaRugi = _totalPemasukan - _totalModal - _totalPengeluaran;
-
     return Scaffold(
       appBar: AppBar(
-        title: Text('Laporan Keuangan'),
-        centerTitle: true,
+        title: const Text('Laporan Keuangan'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.date_range),
+            onPressed: () => _selectDateRange(context),
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              setState(() {
+                _startDate = null;
+                _endDate = null;
+              });
+              _loadFinancialSummary();
+            },
+          ),
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _financialSummary,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text('Tidak ada data.'));
+          }
+
+          final summary = snapshot.data!;
+          return _buildReportContent(context, summary);
+        },
+      ),
+    );
+  }
+
+  Widget _buildReportContent(BuildContext context, Map<String, dynamic> summary) {
+    final labaRugi = summary['laba_rugi'] as int;
+    final isProfit = labaRugi >= 0;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSummaryCard(summary, isProfit, labaRugi),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard(Map<String, dynamic> summary, bool isProfit, int labaRugi) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Filter Dropdown
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey),
-                borderRadius: BorderRadius.circular(8),
-                color: Colors.white,
-              ),
-              child: DropdownButton<String>(
-                value: _selectedFilter,
-                isExpanded: true,
-                underline: Container(),
-                icon: Icon(Icons.arrow_drop_down),
-                items: _filterOptions.map((String value) {
-                  return DropdownMenuItem<String>(
-                    value: value,
-                    child: Text(value),
-                  );
-                }).toList(),
-                onChanged: (String? value) {
-                  if (value != null) {
-                    setState(() {
-                      _selectedFilter = value;
-                    });
-                    _loadLaporan();
-                  }
-                },
-              ),
-            ),
-            SizedBox(height: 20),
-            // Summary Cards
             Text(
-              'Ringkasan $_selectedFilter',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              'Laporan Keuangan',
+              style: Theme.of(context).textTheme.titleLarge,
             ),
-            SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildSummaryCard(
-                    'Modal Awal',
-                    CurrencyFormatter.format(_totalModal),
-                    Color(0xFF2E7D32),
-                    Icons.account_balance_wallet,
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: _buildSummaryCard(
-                    'Pengeluaran',
-                    CurrencyFormatter.format(_totalPengeluaran),
-                    Color(0xFFD32F2F),
-                    Icons.money_off,
-                  ),
-                ),
-              ],
+            const SizedBox(height: 16),
+            _buildSummaryRow('Total Pemasukan', summary['total_pemasukan']),
+            _buildSummaryRow('Total Pengeluaran', summary['total_pengeluaran']),
+            const Divider(height: 24),
+            _buildSummaryRow(
+              'Laba / Rugi',
+              labaRugi,
+              color: isProfit ? Colors.green[700] : Colors.red[700],
+              isBold: true,
             ),
-            SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildSummaryCard(
-                    'Pemasukan',
-                    CurrencyFormatter.format(_totalPemasukan),
-                    Color(0xFF1976D2),
-                    Icons.monetization_on,
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: _buildSummaryCard(
-                    labaRugi >= 0 ? 'Laba' : 'Rugi',
-                    CurrencyFormatter.format(labaRugi.abs()),
-                    labaRugi >= 0 ? Color(0xFF388E3C) : Color(0xFFD32F2F),
-                    labaRugi >= 0 ? Icons.trending_up : Icons.trending_down,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 24),
-            // Detail Pengeluaran
-            _buildSectionHeader('Detail Pengeluaran', Color(0xFFD32F2F)),
-            SizedBox(height: 8),
-            _detailPengeluaran.isEmpty
-                ? _buildEmptyState('Tidak ada data pengeluaran')
-                : Column(
-                    children: _detailPengeluaran.map((item) {
-                      return Card(
-                        margin: EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: Color(0xFFD32F2F),
-                            child: Icon(Icons.money_off, color: Colors.white, size: 20),
-                          ),
-                          title: Text(item['keterangan'], style: TextStyle(fontWeight: FontWeight.w500)),
-                          subtitle: Text(DateFormat('dd MMM yyyy').format(DateTime.parse(item['tanggal']))),
-                          trailing: Text(
-                            CurrencyFormatter.format(item['jumlah']),
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFD32F2F),
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-            SizedBox(height: 20),
-            // Detail Pemasukan
-            _buildSectionHeader('Detail Pemasukan', Color(0xFF1976D2)),
-            SizedBox(height: 8),
-            _detailPemasukan.isEmpty
-                ? _buildEmptyState('Tidak ada data pemasukan')
-                : Column(
-                    children: _detailPemasukan.map((item) {
-                      return Card(
-                        margin: EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: Color(0xFF1976D2),
-                            child: Icon(Icons.monetization_on, color: Colors.white, size: 20),
-                          ),
-                          title: Text(item['jenis_layanan'], style: TextStyle(fontWeight: FontWeight.w500)),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(DateFormat('dd MMM yyyy').format(DateTime.parse(item['tanggal']))),
-                              Text('${item['jumlah_transaksi']} transaksi'),
-                            ],
-                          ),
-                          trailing: Text(
-                            CurrencyFormatter.format(item['total_harga']),
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1976D2),
-                            ),
-                          ),
-                          isThreeLine: true,
-                        ),
-                      );
-                    }).toList(),
-                  ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSummaryCard(String title, String amount, Color color, IconData icon) {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 4,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildSummaryRow(String title, int value, {Color? color, bool isBold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Icon(icon, color: color, size: 20),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
                 ),
-              ),
-            ],
           ),
-          SizedBox(height: 8),
           Text(
-            amount,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title, Color color) {
-    return Row(
-      children: [
-        Container(
-          width: 4,
-          height: 20,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        SizedBox(width: 8),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey[800],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEmptyState(String message) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(32),
-      child: Column(
-        children: [
-          Icon(Icons.inbox, size: 48, color: Colors.grey[400]),
-          SizedBox(height: 12),
-          Text(
-            message,
-            style: TextStyle(color: Colors.grey[600]),
-            textAlign: TextAlign.center,
+            CurrencyFormatter.format(value),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: color,
+                  fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+                ),
           ),
         ],
       ),

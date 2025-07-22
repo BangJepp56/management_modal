@@ -1,248 +1,199 @@
-// lib/screens/dashboard_screen.dart
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
-import '../database/database_helper.dart';
-import '../utils/currency_formatter.dart';
-import '../screens/modal_awal_screen.dart';
-import '../screens/pengeluaran_screen.dart';
-import '../screens/pemasukan_screen.dart';
-import '../screens/laporan_screen.dart';
+import 'package:management_app/database/database_helper.dart';
+import 'package:management_app/screens/laporan_screen.dart';
+import 'package:management_app/screens/modal_awal_screen.dart';
+import 'package:management_app/screens/pemasukan_screen.dart';
+import 'package:management_app/screens/pengeluaran_screen.dart';
+import 'package:management_app/utils/currency_formatter.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
-  _DashboardScreenState createState() => _DashboardScreenState();
+  State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final DatabaseHelper _dbHelper = DatabaseHelper();
-  int _totalModal = 0;
-  int _totalPengeluaran = 0;
-  int _totalPemasukan = 0;
+  final dbHelper = DatabaseHelper();
+  late Future<Map<String, dynamic>> _financialSummary;
 
   @override
   void initState() {
     super.initState();
-    _loadSummary();
+    _loadFinancialSummary();
   }
 
-  Future<void> _loadSummary() async {
-    final modal = await _dbHelper.getTotalModal();
-    final pengeluaran = await _dbHelper.getTotalPengeluaran();
-    final pemasukan = await _dbHelper.getTotalPemasukan();
-
+  void _loadFinancialSummary() {
     setState(() {
-      _totalModal = modal as int;
-      _totalPengeluaran = pengeluaran as int;
-      _totalPemasukan = pemasukan as int;
+      _financialSummary = dbHelper.getFinancialSummary();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final labaRugi = _totalPemasukan - _totalModal - _totalPengeluaran;
-
     return Scaffold(
       appBar: AppBar(
-        title: Text('Dashboard Keuangan'),
-        centerTitle: true,
+        title: const Text('Dashboard'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadFinancialSummary,
+          ),
+        ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadSummary,
-        child: SingleChildScrollView(
-          physics: AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.all(16),
-          child: Column(
-            children: [
-              // Summary Cards
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildSummaryCard(
-                      'Total Modal',
-                      CurrencyFormatter.format(_totalModal),
-                      Color(0xFF2E7D32),
-                      Icons.account_balance_wallet,
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: _buildSummaryCard(
-                      'Total Pengeluaran',
-                      CurrencyFormatter.format(_totalPengeluaran),
-                      Color(0xFFD32F2F),
-                      Icons.money_off,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildSummaryCard(
-                      'Total Pemasukan',
-                      CurrencyFormatter.format(_totalPemasukan),
-                      Color(0xFF1976D2),
-                      Icons.monetization_on,
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: _buildSummaryCard(
-                      labaRugi >= 0 ? 'Laba' : 'Rugi',
-                      CurrencyFormatter.format(labaRugi.abs()),
-                      labaRugi >= 0 ? Color(0xFF388E3C) : Color(0xFFD32F2F),
-                      labaRugi >= 0 ? Icons.trending_up : Icons.trending_down,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 24),
-              // Menu Cards
-              _buildMenuCard(
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _financialSummary,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text('Tidak ada data.'));
+          }
+
+          final summary = snapshot.data!;
+          return _buildDashboardContent(context, summary);
+        },
+      ),
+    );
+  }
+
+  Widget _buildDashboardContent(BuildContext context, Map<String, dynamic> summary) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSummaryCard(summary),
+          const SizedBox(height: 24),
+          Text(
+            'Menu Utama',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 16),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            children: <Widget>[
+              _buildDashboardItem(
+                context,
                 'Modal Awal',
-                'Kelola barang modal awal',
-                Icons.inventory,
-                Color(0xFF2E7D32),
-                () => _navigateToScreen(ModalAwalScreen()),
+                Icons.account_balance_wallet,
+                () => _navigateTo(ModalAwalScreen()),
               ),
-              SizedBox(height: 12),
-              _buildMenuCard(
-                'Pengeluaran',
-                'Catat pengeluaran harian',
-                Icons.receipt_long,
-                Color(0xFFD32F2F),
-                () => _navigateToScreen(PengeluaranScreen()),
-              ),
-              SizedBox(height: 12),
-              _buildMenuCard(
+              _buildDashboardItem(
+                context,
                 'Pemasukan',
-                'Catat transaksi pemasukan',
-                Icons.point_of_sale,
-                Color(0xFF1976D2),
-                () => _navigateToScreen(PemasukanScreen()),
+                Icons.arrow_upward,
+                () => _navigateTo(PemasukanScreen()),
               ),
-              SizedBox(height: 12),
-              _buildMenuCard(
+              _buildDashboardItem(
+                context,
+                'Pengeluaran',
+                Icons.arrow_downward,
+                () => _navigateTo(PengeluaranScreen()),
+              ),
+              _buildDashboardItem(
+                context,
                 'Laporan',
-                'Lihat laporan keuangan',
                 Icons.bar_chart,
-                Color(0xFF7B1FA2),
-                () => _navigateToScreen(LaporanScreen()),
+                () => _navigateTo(LaporanScreen()),
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard(Map<String, dynamic> summary) {
+    final labaRugi = summary['laba_rugi'] as int;
+    final isProfit = labaRugi >= 0;
+
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Ringkasan Keuangan',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 16),
+            _buildSummaryRow('Total Modal', summary['total_modal']),
+            _buildSummaryRow('Total Pemasukan', summary['total_pemasukan']),
+            _buildSummaryRow('Total Pengeluaran', summary['total_pengeluaran']),
+            const Divider(height: 24),
+            _buildSummaryRow(
+              'Laba / Rugi',
+              labaRugi,
+              color: isProfit ? Colors.green[700] : Colors.red[700],
+            ),
+            _buildSummaryRow(
+              'Saldo Akhir',
+              summary['saldo'],
+              isBold: true,
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildSummaryCard(String title, String amount, Color color, IconData icon) {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 4,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildSummaryRow(String title, int value, {Color? color, bool isBold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Icon(icon, color: color, size: 20),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 8),
+          Text(title, style: Theme.of(context).textTheme.bodyMedium),
           Text(
-            amount,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+            CurrencyFormatter.format(value),
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: color,
+                  fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+                ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMenuCard(String title, String subtitle, IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildDashboardItem(
+    BuildContext context, String title, IconData icon, VoidCallback onTap) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: color, size: 24),
-              ),
-              SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[800],
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right, color: Colors.grey[400]),
-            ],
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Icon(icon, size: 48.0, color: Theme.of(context).primaryColor),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );
   }
 
-  void _navigateToScreen(Widget screen) async {
-    await Navigator.push(
+  void _navigateTo(Widget screen) {
+    Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => screen),
-    );
-    _loadSummary();
+    ).then((_) => _loadFinancialSummary());
   }
 }
