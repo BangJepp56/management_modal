@@ -1,10 +1,12 @@
-
 // ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
 
 import '../database/database_helper.dart';
 import '../utils/currency_formatter.dart';
+import '../widgets/custom_card.dart';
+import '../widgets/form_input_field.dart';
+import '../widgets/primary_button.dart';
 
 class ModalAwalScreen extends StatefulWidget {
   const ModalAwalScreen({super.key});
@@ -30,38 +32,143 @@ class _ModalAwalScreenState extends State<ModalAwalScreen> {
     _loadModal();
   }
 
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
   Future<void> _loadModal() async {
-    final data = await _dbHelper.getModalAwal();
-    final total = await _dbHelper.getTotalModal();
-    setState(() {
-      _modalList = data;
-      _totalModal = total;
-    });
+    try {
+      final data = await _dbHelper.getModalAwal();
+      final total = await _dbHelper.getTotalModal();
+      setState(() {
+        _modalList = data;
+        _totalModal = total;
+      });
+    } catch (e) {
+      _showErrorSnackBar('Gagal memuat data modal.');
+    }
   }
 
   Future<void> _addModal() async {
     if (_formKey.currentState!.validate()) {
-      final hargaSatuan = int.parse(_hargaSatuanController.text);
-      final jumlah = int.parse(_jumlahController.text);
+      final hargaSatuan = int.tryParse(_hargaSatuanController.text);
+      final jumlah = int.tryParse(_jumlahController.text);
+
+      if (hargaSatuan == null || jumlah == null) {
+        _showErrorSnackBar('Pastikan harga dan jumlah adalah angka yang valid.');
+        return;
+      }
+
       final total = hargaSatuan * jumlah;
 
-      await _dbHelper.insertModalAwal({
-        'nama_barang': _namaBarangController.text,
-        'harga_satuan': hargaSatuan,
-        'jumlah': jumlah,
-        'total': total,
-      });
+      try {
+        await _dbHelper.insertModalAwal({
+          'nama_barang': _namaBarangController.text,
+          'harga_satuan': hargaSatuan,
+          'jumlah': jumlah,
+          'total': total,
+        });
 
-      _namaBarangController.clear();
-      _hargaSatuanController.clear();
-      _jumlahController.clear();
-      _loadModal();
+        _namaBarangController.clear();
+        _hargaSatuanController.clear();
+        _jumlahController.clear();
+        _loadModal();
+      } catch (e) {
+        _showErrorSnackBar('Gagal menambahkan modal.');
+      }
     }
   }
 
   Future<void> _deleteModal(int id) async {
-    await _dbHelper.deleteModalAwal(id);
-    _loadModal();
+    try {
+      await _dbHelper.deleteModalAwal(id);
+      _loadModal();
+    } catch (e) {
+      _showErrorSnackBar('Gagal menghapus modal.');
+    }
+  }
+
+  Future<void> _showEditModalDialog(Map<String, dynamic> modal) async {
+    _namaBarangController.text = modal['nama_barang'];
+    _hargaSatuanController.text = modal['harga_satuan'].toString();
+    _jumlahController.text = modal['jumlah'].toString();
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Edit Modal'),
+          content: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _namaBarangController,
+                  decoration: InputDecoration(labelText: 'Nama Barang'),
+                  validator: (value) => value?.isEmpty == true ? 'Nama barang harus diisi' : null,
+                ),
+                TextFormField(
+                  controller: _hargaSatuanController,
+                  decoration: InputDecoration(labelText: 'Harga Satuan'),
+                  keyboardType: TextInputType.number,
+                  validator: (value) => value?.isEmpty == true ? 'Harga harus diisi' : null,
+                ),
+                TextFormField(
+                  controller: _jumlahController,
+                  decoration: InputDecoration(labelText: 'Jumlah'),
+                  keyboardType: TextInputType.number,
+                  validator: (value) => value?.isEmpty == true ? 'Jumlah harus diisi' : null,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (_formKey.currentState!.validate()) {
+                  final hargaSatuan = int.tryParse(_hargaSatuanController.text);
+                  final jumlah = int.tryParse(_jumlahController.text);
+
+                  if (hargaSatuan == null || jumlah == null) {
+                    _showErrorSnackBar('Pastikan harga dan jumlah adalah angka yang valid.');
+                    return;
+                  }
+
+                  final total = hargaSatuan * jumlah;
+
+                  try {
+                    await _dbHelper.updateModalAwal(modal['id'], {
+                      'nama_barang': _namaBarangController.text,
+                      'harga_satuan': hargaSatuan,
+                      'jumlah': jumlah,
+                      'total': total,
+                    });
+                    Navigator.pop(context);
+                    _loadModal();
+                  } catch (e) {
+                    _showErrorSnackBar('Gagal memperbarui modal.');
+                  }
+                }
+              },
+              child: Text('Simpan'),
+            ),
+          ],
+        );
+      },
+    );
+    _namaBarangController.clear();
+    _hargaSatuanController.clear();
+    _jumlahController.clear();
   }
 
   @override
@@ -105,57 +212,35 @@ class _ModalAwalScreenState extends State<ModalAwalScreen> {
             ),
           ),
           // Form
-          Container(
-            margin: EdgeInsets.symmetric(horizontal: 16),
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
-                  spreadRadius: 1,
-                  blurRadius: 4,
-                ),
-              ],
-            ),
+          CustomCard(
             child: Form(
               key: _formKey,
               child: Column(
                 children: [
-                  TextFormField(
+                  FormInputField(
                     controller: _namaBarangController,
-                    decoration: InputDecoration(
-                      labelText: 'Nama Barang',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      prefixIcon: Icon(Icons.inventory),
-                    ),
+                    labelText: 'Nama Barang',
+                    prefixIcon: Icons.inventory,
                     validator: (value) => value?.isEmpty == true ? 'Nama barang harus diisi' : null,
                   ),
                   SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
-                        child: TextFormField(
+                        child: FormInputField(
                           controller: _hargaSatuanController,
-                          decoration: InputDecoration(
-                            labelText: 'Harga Satuan',
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            prefixIcon: Icon(Icons.attach_money),
-                          ),
+                          labelText: 'Harga Satuan',
+                          prefixIcon: Icons.attach_money,
                           keyboardType: TextInputType.number,
                           validator: (value) => value?.isEmpty == true ? 'Harga harus diisi' : null,
                         ),
                       ),
                       SizedBox(width: 12),
                       Expanded(
-                        child: TextFormField(
+                        child: FormInputField(
                           controller: _jumlahController,
-                          decoration: InputDecoration(
-                            labelText: 'Jumlah',
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            prefixIcon: Icon(Icons.format_list_numbered),
-                          ),
+                          labelText: 'Jumlah',
+                          prefixIcon: Icons.format_list_numbered,
                           keyboardType: TextInputType.number,
                           validator: (value) => value?.isEmpty == true ? 'Jumlah harus diisi' : null,
                         ),
@@ -163,19 +248,11 @@ class _ModalAwalScreenState extends State<ModalAwalScreen> {
                     ],
                   ),
                   SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton.icon(
-                      onPressed: _addModal,
-                      icon: Icon(Icons.add),
-                      label: Text('Tambah Modal'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFF2E7D32),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
+                  PrimaryButton(
+                    onPressed: _addModal,
+                    text: 'Tambah Modal',
+                    icon: Icons.add,
+                    backgroundColor: Color(0xFF2E7D32),
                   ),
                 ],
               ),
@@ -205,6 +282,10 @@ class _ModalAwalScreenState extends State<ModalAwalScreen> {
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                         SizedBox(width: 8),
+                        IconButton(
+                          onPressed: () => _showEditModalDialog(item),
+                          icon: Icon(Icons.edit, color: Colors.blue),
+                        ),
                         IconButton(
                           onPressed: () => _deleteModal(item['id']),
                           icon: Icon(Icons.delete, color: Colors.red),

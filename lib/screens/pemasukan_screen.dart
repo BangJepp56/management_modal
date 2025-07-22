@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import '../database/database_helper.dart';
 import '../utils/currency_formatter.dart';
 import 'package:intl/intl.dart';
+import '../widgets/custom_card.dart';
+import '../widgets/form_input_field.dart';
+import '../widgets/primary_button.dart';
 
 class PemasukanScreen extends StatefulWidget {
   const PemasukanScreen({super.key});
@@ -38,35 +41,155 @@ class _PemasukanScreenState extends State<PemasukanScreen> {
     _loadPemasukan();
   }
 
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
   Future<void> _loadPemasukan() async {
-    final data = await _dbHelper.getPemasukan();
-    final total = await _dbHelper.getTotalPemasukan();
-    setState(() {
-      _pemasukanList = data;
-      _totalPemasukan = total;
-    });
+    try {
+      final data = await _dbHelper.getPemasukan();
+      final total = await _dbHelper.getTotalPemasukan();
+      setState(() {
+        _pemasukanList = data;
+        _totalPemasukan = total;
+      });
+    } catch (e) {
+      _showErrorSnackBar('Gagal memuat data pemasukan.');
+    }
   }
 
   Future<void> _addPemasukan() async {
     if (_formKey.currentState!.validate()) {
-      await _dbHelper.insertPemasukan({
-        'tanggal': DateFormat('yyyy-MM-dd').format(_selectedDate),
-        'jenis_layanan': _jenisLayananController.text,
-        'jumlah_transaksi': int.parse(_jumlahTransaksiController.text),
-        'total_harga': int.parse(_totalHargaController.text),
-      });
+      final jumlahTransaksi = int.tryParse(_jumlahTransaksiController.text);
+      final totalHarga = int.tryParse(_totalHargaController.text);
 
-      _jenisLayananController.clear();
-      _jumlahTransaksiController.clear();
-      _totalHargaController.clear();
-      _selectedDate = DateTime.now();
-      _loadPemasukan();
+      if (jumlahTransaksi == null || totalHarga == null) {
+        _showErrorSnackBar('Pastikan jumlah transaksi dan total harga adalah angka yang valid.');
+        return;
+      }
+
+      try {
+        await _dbHelper.insertPemasukan({
+          'tanggal': DateFormat('yyyy-MM-dd').format(_selectedDate),
+          'jenis_layanan': _jenisLayananController.text,
+          'jumlah_transaksi': jumlahTransaksi,
+          'total_harga': totalHarga,
+        });
+
+        _jenisLayananController.clear();
+        _jumlahTransaksiController.clear();
+        _totalHargaController.clear();
+        _selectedDate = DateTime.now();
+        _loadPemasukan();
+      } catch (e) {
+        _showErrorSnackBar('Gagal menambahkan pemasukan.');
+      }
     }
   }
 
   Future<void> _deletePemasukan(int id) async {
-    await _dbHelper.deletePemasukan(id);
-    _loadPemasukan();
+    try {
+      await _dbHelper.deletePemasukan(id);
+      _loadPemasukan();
+    } catch (e) {
+      _showErrorSnackBar('Gagal menghapus pemasukan.');
+    }
+  }
+
+  Future<void> _showEditPemasukanDialog(Map<String, dynamic> pemasukan) async {
+    _jenisLayananController.text = pemasukan['jenis_layanan'];
+    _jumlahTransaksiController.text = pemasukan['jumlah_transaksi'].toString();
+    _totalHargaController.text = pemasukan['total_harga'].toString();
+    _selectedDate = DateTime.parse(pemasukan['tanggal']);
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Edit Pemasukan'),
+          content: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  decoration: InputDecoration(labelText: 'Jenis Layanan'),
+                  value: _jenisLayananController.text,
+                  items: _jenisLayananOptions.map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                  onChanged: (String? value) {
+                    if (value != null) {
+                      setState(() {
+                        _jenisLayananController.text = value;
+                      });
+                    }
+                  },
+                  validator: (value) => value == null ? 'Pilih jenis layanan' : null,
+                ),
+                TextFormField(
+                  controller: _jumlahTransaksiController,
+                  decoration: InputDecoration(labelText: 'Jumlah Transaksi'),
+                  keyboardType: TextInputType.number,
+                  validator: (value) => value?.isEmpty == true ? 'Jumlah harus diisi' : null,
+                ),
+                TextFormField(
+                  controller: _totalHargaController,
+                  decoration: InputDecoration(labelText: 'Total Harga'),
+                  keyboardType: TextInputType.number,
+                  validator: (value) => value?.isEmpty == true ? 'Total harga harus diisi' : null,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (_formKey.currentState!.validate()) {
+                  final jumlahTransaksi = int.tryParse(_jumlahTransaksiController.text);
+                  final totalHarga = int.tryParse(_totalHargaController.text);
+
+                  if (jumlahTransaksi == null || totalHarga == null) {
+                    _showErrorSnackBar('Pastikan jumlah transaksi dan total harga adalah angka yang valid.');
+                    return;
+                  }
+
+                  try {
+                    await _dbHelper.updatePemasukan(pemasukan['id'], {
+                      'tanggal': DateFormat('yyyy-MM-dd').format(_selectedDate),
+                      'jenis_layanan': _jenisLayananController.text,
+                      'jumlah_transaksi': jumlahTransaksi,
+                      'total_harga': totalHarga,
+                    });
+                    Navigator.pop(context);
+                    _loadPemasukan();
+                  } catch (e) {
+                    _showErrorSnackBar('Gagal memperbarui pemasukan.');
+                  }
+                }
+              },
+              child: Text('Simpan'),
+            ),
+          ],
+        );
+      },
+    );
+    _jenisLayananController.clear();
+    _jumlahTransaksiController.clear();
+    _totalHargaController.clear();
+    _selectedDate = DateTime.now();
   }
 
   Future<void> _selectDate() async {
@@ -124,20 +247,7 @@ class _PemasukanScreenState extends State<PemasukanScreen> {
             ),
           ),
           // Form
-          Container(
-            margin: EdgeInsets.symmetric(horizontal: 16),
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
-                  spreadRadius: 1,
-                  blurRadius: 4,
-                ),
-              ],
-            ),
+          CustomCard(
             child: Form(
               key: _formKey,
               child: Column(
@@ -185,26 +295,20 @@ class _PemasukanScreenState extends State<PemasukanScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: TextFormField(
+                        child: FormInputField(
                           controller: _jumlahTransaksiController,
-                          decoration: InputDecoration(
-                            labelText: 'Jumlah Transaksi',
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            prefixIcon: Icon(Icons.format_list_numbered),
-                          ),
+                          labelText: 'Jumlah Transaksi',
+                          prefixIcon: Icons.format_list_numbered,
                           keyboardType: TextInputType.number,
                           validator: (value) => value?.isEmpty == true ? 'Jumlah harus diisi' : null,
                         ),
                       ),
                       SizedBox(width: 12),
                       Expanded(
-                        child: TextFormField(
+                        child: FormInputField(
                           controller: _totalHargaController,
-                          decoration: InputDecoration(
-                            labelText: 'Total Harga',
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            prefixIcon: Icon(Icons.attach_money),
-                          ),
+                          labelText: 'Total Harga',
+                          prefixIcon: Icons.attach_money,
                           keyboardType: TextInputType.number,
                           validator: (value) => value?.isEmpty == true ? 'Total harga harus diisi' : null,
                         ),
@@ -212,19 +316,11 @@ class _PemasukanScreenState extends State<PemasukanScreen> {
                     ],
                   ),
                   SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton.icon(
-                      onPressed: _addPemasukan,
-                      icon: Icon(Icons.add),
-                      label: Text('Tambah Pemasukan'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFF1976D2),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
+                  PrimaryButton(
+                    onPressed: _addPemasukan,
+                    text: 'Tambah Pemasukan',
+                    icon: Icons.add,
+                    backgroundColor: Color(0xFF1976D2),
                   ),
                 ],
               ),
@@ -263,6 +359,10 @@ class _PemasukanScreenState extends State<PemasukanScreen> {
                           ),
                         ),
                         SizedBox(width: 8),
+                        IconButton(
+                          onPressed: () => _showEditPemasukanDialog(item),
+                          icon: Icon(Icons.edit, color: Colors.blue),
+                        ),
                         IconButton(
                           onPressed: () => _deletePemasukan(item['id']),
                           icon: Icon(Icons.delete, color: Colors.red),
