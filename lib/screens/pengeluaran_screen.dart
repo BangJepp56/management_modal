@@ -45,7 +45,7 @@ class _PengeluaranScreenState extends State<PengeluaranScreen> {
       final total = await _dbHelper.getTotalPengeluaran();
       setState(() {
         _pengeluaranList = data;
-        _totalPengeluaran = total;
+        _totalPengeluaran = total as int;
       });
     } catch (e) {
       _showErrorSnackBar('Gagal memuat data pengeluaran.');

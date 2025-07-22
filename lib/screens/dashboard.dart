@@ -35,9 +35,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final pemasukan = await _dbHelper.getTotalPemasukan();
 
     setState(() {
-      _totalModal = modal;
-      _totalPengeluaran = pengeluaran;
-      _totalPemasukan = pemasukan;
+      _totalModal = modal as int;
+      _totalPengeluaran = pengeluaran as int;
+      _totalPemasukan = pemasukan as int;
     });
   }
 

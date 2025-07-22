@@ -56,7 +56,7 @@ class _PemasukanScreenState extends State<PemasukanScreen> {
       final total = await _dbHelper.getTotalPemasukan();
       setState(() {
         _pemasukanList = data;
-        _totalPemasukan = total;
+        _totalPemasukan = total as int;
       });
     } catch (e) {
       _showErrorSnackBar('Gagal memuat data pemasukan.');

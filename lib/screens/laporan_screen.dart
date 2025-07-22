@@ -52,7 +52,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
     }
 
     setState(() {
-      _totalModal = modal;
+      _totalModal = modal as int;
       _totalPengeluaran = totalPengeluaran;
       _totalPemasukan = totalPemasukan;
       _detailPengeluaran = filteredPengeluaran;
