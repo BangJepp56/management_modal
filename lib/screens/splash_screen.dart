@@ -143,7 +143,7 @@ class _SplashScreenState extends State<SplashScreen>
                     child: Column(
                       children: [
                         const Text(
-                          'MoneyManager',
+                          'Modal Management',
                           style: TextStyle(
                             fontSize: 32,
                             fontWeight: FontWeight.bold,
