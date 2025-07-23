@@ -635,4 +635,10 @@ class DatabaseHelper {
       rethrow;
     }
   }
+
+  Future getKategoriPemasukan() async {}
+
+  Future<void> insertKategoriPemasukan(String kategori) async {}
+
+  Future<void> deleteKategoriPemasukan(String kategori) async {}
 }

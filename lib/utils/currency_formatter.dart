@@ -10,5 +10,7 @@ class CurrencyFormatter {
   static String format(int amount) {
     return _formatter.format(amount);
   }
+
+  static formatWithoutSymbol(int parse) {}
 }
 
