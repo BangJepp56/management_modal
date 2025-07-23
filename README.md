@@ -4,7 +4,7 @@ Aplikasi manajemen keuangan sederhana yang dibangun dengan Flutter dan SQLite un
 
 ## 📱 Screenshots
 
-![App Screenshots](screenshots/app_preview.jpg)
+![App Screenshots](app_preview.jpg)
 
 ## ✨ Fitur Utama
 
